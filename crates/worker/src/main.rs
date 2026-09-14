@@ -1,4 +1,8 @@
-use protocol::{JobResult, WorkUnit};
+use protocol::{
+    JobResult,
+    WorkUnit,
+    WorkerRegistration,
+};
 use uuid::Uuid;
 
 const SERVER: &str = "http://localhost:3000";
@@ -9,15 +13,43 @@ async fn main() {
 
     let client = reqwest::Client::new();
 
+    let worker_id = Uuid::new_v4();
+
+    let registration = WorkerRegistration {
+        worker_id,
+        hostname: hostname(),
+    };
+
+    let heartbeat_client = client.clone();
+
+    tokio::spawn(async move {
+        loop {
+            let _ = heartbeat_client
+                .post(format!("{SERVER}/workers/{worker_id}/heartbeat"))
+                .send()
+                .await;
+
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    });
+
+    client
+        .post(format!("{SERVER}/workers/register"))
+        .json(&registration)
+        .send()
+        .await
+        .expect("failed to register worker");
+
+    println!("worker id: {worker_id}");
+
     loop {
         let response = client
-            .get(format!("{SERVER}/work"))
+            .get(format!("{SERVER}/workers/{worker_id}/work"))
             .send()
             .await
             .expect("failed to contact server");
 
-        let work: Option<WorkUnit> =
-            response.json().await.expect("invalid work response");
+        let work: Option<WorkUnit> = response.json().await.expect("invalid work response");
 
         match work {
             Some(work) => {
@@ -41,11 +73,12 @@ async fn main() {
             }
 
             None => {
-                println!("no work available");
-                tokio::time::sleep(
-                    std::time::Duration::from_secs(1)
-                ).await;
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
         }
     }
+}
+
+fn hostname() -> String {
+    std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_string())
 }
