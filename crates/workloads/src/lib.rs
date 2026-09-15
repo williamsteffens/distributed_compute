@@ -1,14 +1,41 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use anyhow::Result;
+use async_trait::async_trait;
+use runtime::ComputeRuntime;
+use serde_json::Value;
+
+#[async_trait]
+pub trait Workload: Send + Sync {
+    fn name(&self) -> &'static str;
+
+    async fn execute(
+        &self,
+        runtime: &dyn ComputeRuntime,
+        payload: Value,
+    ) -> Result<Value>;
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub struct VectorAddWorkload;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+#[async_trait]
+impl Workload for VectorAddWorkload {
+    fn name(&self) -> &'static str {
+        "vector_add"
+    }
+
+    async fn execute(
+        &self,
+        runtime: &dyn ComputeRuntime,
+        payload: Value,
+    ) -> Result<Value> {
+        runtime
+            .execute(self.name(), payload)
+            .await
+    }
+}
+
+pub fn get_workload(name: &str) -> Option<Box<dyn Workload>> {
+    match name {
+        "vector_add" => Some(Box::new(VectorAddWorkload)),
+        _ => None,
     }
 }

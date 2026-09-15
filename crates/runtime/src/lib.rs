@@ -1,4 +1,14 @@
 use anyhow::{Result, anyhow};
+use async_trait::async_trait;
+
+#[async_trait]
+pub trait ComputeRuntime: Send + Sync {
+    async fn execute(
+        &self,
+        workload: &str,
+        payload: serde_json::Value,
+    ) -> Result<serde_json::Value>;
+}
 
 pub struct GpuRuntime {
     device: wgpu::Device,
@@ -259,5 +269,56 @@ impl GpuRuntime {
         staging_buffer.unmap();
 
         Ok(result)
+    }
+}
+
+#[async_trait]
+impl ComputeRuntime for GpuRuntime {
+    async fn execute(
+        &self,
+        workload: &str,
+        payload: serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        match workload {
+            "vector_add" => {
+                let a = payload
+                    .get("a")
+                    .and_then(|value| value.as_array())
+                    .ok_or_else(|| anyhow!("vector_add requires payload.a"))?;
+
+                let b = payload
+                    .get("b")
+                    .and_then(|value| value.as_array())
+                    .ok_or_else(|| anyhow!("vector_add requires payload.b"))?;
+
+                let a: Vec<f32> = a
+                    .iter()
+                    .map(|value| {
+                        value
+                            .as_f64()
+                            .map(|v| v as f32)
+                            .ok_or_else(|| anyhow!("vector_add.a must contain numbers"))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                let b: Vec<f32> = b
+                    .iter()
+                    .map(|value| {
+                        value
+                            .as_f64()
+                            .map(|v| v as f32)
+                            .ok_or_else(|| anyhow!("vector_add.b must contain numbers"))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                let result = self.vector_add(&a, &b)?;
+
+                Ok(serde_json::json!({
+                    "result": result
+                }))
+            }
+
+            _ => Err(anyhow!("unsupported workload: {workload}")),
+        }
     }
 }

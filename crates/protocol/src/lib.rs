@@ -47,3 +47,12 @@ pub enum WorkerStatus {
     Online,
     Offline,
 }
+
+pub enum Workload {
+    VectorAdd,
+    VectorScale,
+    Saxpy,
+    MatrixMultiply,
+    Mandelbrot,
+    MonteCarlo,
+}
