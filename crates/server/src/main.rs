@@ -1,181 +1,179 @@
-use axum::{
-    Json, Router,
-    extract::{Path, State},
-    routing::{get, post},
-};
+mod api;
+mod benchmark;
+mod cli;
+mod state;
 
-use protocol::{Job, JobResult, WorkUnit, WorkerInfo, WorkerRegistration, WorkerStatus};
-
-use std::{
-    collections::{HashMap, VecDeque},
-    sync::{Arc, Mutex},
-    time::{SystemTime, UNIX_EPOCH},
-};
-
-use uuid::Uuid;
-
-#[derive(Clone)]
-struct AppState {
-    queue: Arc<Mutex<VecDeque<WorkUnit>>>,
-    assigned: Arc<Mutex<HashMap<Uuid, WorkUnit>>>,
-    workers: Arc<Mutex<HashMap<Uuid, WorkerInfo>>>,
-}
+use anyhow::Result;
+use benchmark::benchmark_vector_add;
+use clap::Parser;
+use cli::{Cli, Command};
+use state::AppState;
 
 #[tokio::main]
-async fn main() {
-    tracing_subscriber::fmt::init();
+async fn main() -> Result<()> {
+    let cli = Cli::parse();
 
-    let state = AppState {
-        queue: Arc::new(Mutex::new(VecDeque::new())),
-        assigned: Arc::new(Mutex::new(HashMap::new())),
-        workers: Arc::new(Mutex::new(HashMap::new())),
-    };
-
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/jobs", post(create_job))
-        .route("/results", post(submit_result))
-        .route("/workers/register", post(register_worker))
-        .route("/workers/{id}/work", get(get_work))
-        .route("/workers/{id}/heartbeat", post(heartbeat))
-        .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-
-    println!("server listening on http://localhost:3000");
-
-    axum::serve(listener, app).await.unwrap();
-}
-
-async fn health() -> &'static str {
-    "ok"
-}
-
-async fn create_job(State(state): State<AppState>, Json(job): Json<Job>) -> Json<Job> {
-    let work_unit = WorkUnit {
-        id: Uuid::new_v4(),
-        job_id: job.id,
-        workload: job.workload.clone(),
-        payload: job.parameters.clone(),
-        assigned_worker: None,
-        lease_expires_at: None,
-        attempts: 0,
-    };
-
-    state.queue.lock().unwrap().push_back(work_unit);
-
-    Json(job)
-}
-
-async fn get_work(
-    State(state): State<AppState>,
-    Path(worker_id): Path<Uuid>,
-) -> Json<Option<WorkUnit>> {
-    let work = {
-        let mut queue = state.queue.lock().unwrap();
-
-        queue.pop_front().map(|mut work| {
-            work.assigned_worker = Some(worker_id);
-            work.attempts += 1;
-            work.lease_expires_at = Some(now() + 30);
-
-            work
-        })
-    };
-
-    if let Some(work) = work {
-        println!(
-            "assigned work {} to worker {}",
-            work.id, worker_id
-        );
-
-        state
-            .assigned
-            .lock()
-            .unwrap()
-            .insert(work.id, work.clone());
-
-        return Json(Some(work));
-    }
-
-    Json(None)
-}
-
-async fn submit_result(
-    State(state): State<AppState>,
-    Json(result): Json<JobResult>,
-) -> &'static str {
-    let work = state
-        .assigned
-        .lock()
-        .unwrap()
-        .remove(&result.work_unit_id);
-
-    match work {
-        Some(work) => {
-            println!(
-                "work {} completed by {:?}",
-                work.id,
-                work.assigned_worker
-            );
-
-            "accepted"
+    match cli.command {
+        Command::Start { bind } => {
+            start_server(&bind).await?;
         }
 
-        None => {
-            println!(
-                "received result for unknown work {}",
-                result.work_unit_id
-            );
+        Command::Run {
+            workload,
+            size,
+            runtime,
+            local,
+        } => {
+            run_command(&workload, size, runtime, local)?;
+        }
 
-            "unknown work"
+        Command::Benchmark {
+            workload,
+            size,
+            compare,
+            runtime,
+            json,
+        } => {
+            benchmark_command(&workload, size, compare, runtime, json)?;
         }
     }
+
+    Ok(())
 }
 
-fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
+async fn start_server(bind: &str) -> Result<()> {
+    let state = AppState::new();
+
+    let app = api::router(state);
+
+    let listener = tokio::net::TcpListener::bind(bind).await?;
+
+    println!("server listening on http://{bind}");
+
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }
 
-async fn register_worker(
-    State(state): State<AppState>,
-    Json(registration): Json<WorkerRegistration>,
-) -> Json<WorkerInfo> {
-    let now = now();
+fn run_command(workload: &str, size: usize, runtime: cli::RuntimeKind, local: bool) -> Result<()> {
+    if !local {
+        anyhow::bail!("distributed run is not implemented yet; use --local");
+    }
 
-    let worker = WorkerInfo {
-        worker_id: registration.worker_id,
-        hostname: registration.hostname,
-        status: WorkerStatus::Online,
-        last_heartbeat: now,
+    if workload != "vector-add" && workload != "vector_add" {
+        anyhow::bail!("unsupported workload: {workload}");
+    }
+
+    let runtime_kind = match runtime {
+        cli::RuntimeKind::Cpu => benchmark::RuntimeKind::Cpu,
+        cli::RuntimeKind::Gpu => benchmark::RuntimeKind::Gpu,
     };
 
-    state
-        .workers
-        .lock()
-        .unwrap()
-        .insert(worker.worker_id, worker.clone());
+    let result = benchmark_vector_add(size, runtime_kind)?;
 
-    println!("worker registered: {}", worker.worker_id);
+    println!("workload: vector_add");
+    println!("size: {size}");
+    println!("runtime: {}", runtime_kind.name());
+    println!("execution: {:.3} ms", result.elapsed_ms);
+    println!("validation: {}", if result.valid { "OK" } else { "FAILED" });
 
-    Json(worker)
+    Ok(())
 }
 
-async fn heartbeat(
-    State(state): State<AppState>,
-    Path(worker_id): Path<Uuid>,
-) -> &'static str {
-    let mut workers = state.workers.lock().unwrap();
+fn benchmark_command(
+    workload: &str,
+    size: usize,
+    compare: Vec<cli::RuntimeKind>,
+    runtime: Option<cli::RuntimeKind>,
+    json: bool,
+) -> Result<()> {
+    if workload != "vector-add" && workload != "vector_add" {
+        anyhow::bail!("unsupported benchmark workload: {workload}");
+    }
 
-    if let Some(worker) = workers.get_mut(&worker_id) {
-        worker.last_heartbeat = now();
-        worker.status = WorkerStatus::Online;
-
-        "ok"
+    let runtimes = if !compare.is_empty() {
+        compare
+    } else if let Some(runtime) = runtime {
+        vec![runtime]
     } else {
-        "unknown worker"
+        vec![cli::RuntimeKind::Cpu, cli::RuntimeKind::Gpu]
+    };
+
+    if json {
+        return benchmark_json(size, &runtimes);
     }
+
+    println!("Benchmark: vector_add");
+    println!("Size:      {size}");
+    println!();
+
+    let mut results = Vec::new();
+
+    for runtime_kind in runtimes {
+        let kind = match runtime_kind {
+            cli::RuntimeKind::Cpu => benchmark::RuntimeKind::Cpu,
+            cli::RuntimeKind::Gpu => benchmark::RuntimeKind::Gpu,
+        };
+
+        let result = benchmark_vector_add(size, kind)?;
+
+        println!("{}", runtime_kind.name());
+        println!("  execution: {:>8.3} ms", result.elapsed_ms);
+        println!(
+            "  validation: {}",
+            if result.valid { "OK" } else { "FAILED" }
+        );
+        println!();
+
+        if !result.valid {
+            anyhow::bail!("{} benchmark produced invalid results", runtime_kind.name());
+        }
+
+        results.push(result);
+    }
+
+    let cpu = results
+        .iter()
+        .find(|result| matches!(result.runtime, benchmark::RuntimeKind::Cpu));
+
+    let gpu = results
+        .iter()
+        .find(|result| matches!(result.runtime, benchmark::RuntimeKind::Gpu));
+
+    if let (Some(cpu), Some(gpu)) = (cpu, gpu) {
+        println!("Speedup");
+
+        println!("  GPU: {:.2}x", cpu.elapsed_ms / gpu.elapsed_ms);
+    }
+
+    Ok(())
+}
+
+fn benchmark_json(size: usize, runtimes: &[cli::RuntimeKind]) -> Result<()> {
+    let mut results = Vec::new();
+
+    for runtime_kind in runtimes {
+        let kind = match runtime_kind {
+            cli::RuntimeKind::Cpu => benchmark::RuntimeKind::Cpu,
+            cli::RuntimeKind::Gpu => benchmark::RuntimeKind::Gpu,
+        };
+
+        let result = benchmark_vector_add(size, kind)?;
+
+        results.push(serde_json::json!({
+            "runtime": runtime_kind.name(),
+            "elapsed_ms": result.elapsed_ms,
+            "valid": result.valid,
+        }));
+    }
+
+    let output = serde_json::json!({
+        "workload": "vector_add",
+        "size": size,
+        "results": results,
+    });
+
+    println!("{}", serde_json::to_string_pretty(&output)?);
+
+    Ok(())
 }
