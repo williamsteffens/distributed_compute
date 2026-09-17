@@ -1,7 +1,7 @@
 use protocol::{
     JobResult,
     WorkUnit,
-    WorkerRegistration,
+    WorkerRegistration
 };
 use uuid::Uuid;
 

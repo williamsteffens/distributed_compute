@@ -1,12 +1,20 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{
-    Json, Router,
+    Json, 
+    Router,
     extract::{Path, State},
     routing::{get, post},
 };
 
-use protocol::{Job, JobResult, WorkUnit, WorkerInfo, WorkerRegistration, WorkerStatus};
+use protocol::{
+    Job,
+    JobResult,
+    WorkUnit,
+    WorkerInfo,
+    WorkerRegistration,
+    WorkerStatus
+};
 
 use uuid::Uuid;
 

@@ -7,11 +7,7 @@ use serde_json::Value;
 pub trait Workload: Send + Sync {
     fn name(&self) -> &'static str;
 
-    async fn execute(
-        &self,
-        runtime: &dyn ComputeRuntime,
-        payload: Value,
-    ) -> Result<Value>;
+    async fn execute(&self, runtime: &dyn ComputeRuntime, payload: Value) -> Result<Value>;
 }
 
 pub struct VectorAddWorkload;
@@ -22,14 +18,8 @@ impl Workload for VectorAddWorkload {
         "vector_add"
     }
 
-    async fn execute(
-        &self,
-        runtime: &dyn ComputeRuntime,
-        payload: Value,
-    ) -> Result<Value> {
-        runtime
-            .execute(self.name(), payload)
-            .await
+    async fn execute(&self, runtime: &dyn ComputeRuntime, payload: Value) -> Result<Value> {
+        runtime.execute(self.name(), payload).await
     }
 }
 
