@@ -28,26 +28,26 @@ async fn main() -> Result<()> {
             start_server(&config).await?;
         }
 
-        Command::Run {
-            workload,
-            size,
-            runtime,
-            local,
-        } => {
-            todo!();
-            // run_command(&workload, size, runtime, local)?;
-        }
+        // Command::Run {
+        //     workload,
+        //     size,
+        //     runtime,
+        //     local,
+        // } => {
+        //     todo!();
+        //     // run_command(&workload, size, runtime, local)?;
+        // }
 
-        Command::Benchmark {
-            workload,
-            size,
-            compare,
-            runtime,
-            json,
-        } => {
-            todo!();
-            // benchmark_command(&workload, size, compare, runtime, json)?;
-        }
+        // Command::Benchmark {
+        //     workload,
+        //     size,
+        //     compare,
+        //     runtime,
+        //     json,
+        // } => {
+        //     todo!();
+        //     // benchmark_command(&workload, size, compare, runtime, json)?;
+        // }
     }
 
     Ok(())
