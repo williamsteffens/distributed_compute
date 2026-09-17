@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 protocol = { path = "../protocol" }
+runtime = { path = "../runtime" }
 
 clap.workspace = true
 tokio.workspace = true

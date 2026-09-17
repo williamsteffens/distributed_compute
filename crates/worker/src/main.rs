@@ -1,11 +1,9 @@
-use protocol::{
-    JobResult,
-    WorkUnit,
-    WorkerRegistration
-};
+use protocol::{JobResult, WorkUnit, WorkerRegistration};
+use runtime::{ComputeRuntime, GpuRuntime};
 use uuid::Uuid;
 
-const SERVER: &str = "http://localhost:3000";
+// TODO: change this
+const SERVER: &str = "http://localhost:42069";
 
 #[tokio::main]
 async fn main() {
@@ -42,6 +40,9 @@ async fn main() {
 
     println!("worker id: {worker_id}");
 
+    let runtime = GpuRuntime::new()
+        .expect("failed to initialize GPU runtime");
+
     loop {
         let response = client
             .get(format!("{SERVER}/workers/{worker_id}/work"))
@@ -49,20 +50,28 @@ async fn main() {
             .await
             .expect("failed to contact server");
 
-        let work: Option<WorkUnit> = response.json().await.expect("invalid work response");
+        let work_unit: Option<WorkUnit> = response.json().await.expect("invalid work response");
 
-        match work {
-            Some(work) => {
-                println!("received work: {}", work.id);
+        match work_unit {
+            Some(work_unit) => {
+                println!("received work: {}", work_unit.id);
 
-                // Fake computation for now.
-                let result = JobResult {
-                    work_unit_id: work.id,
-                    success: true,
-                    result: serde_json::json!({
-                        "message": "hello from worker"
-                    }),
-                };
+                let result = 
+                    match runtime.execute("vector_add", work_unit.payload.clone()).await {
+                        Ok(result) => JobResult {
+                            work_unit_id: work_unit.id,
+                            success: true,
+                            result,
+                        },
+
+                        Err(error) => JobResult {
+                            work_unit_id: work_unit.id,
+                            success: false,
+                            result: serde_json::json!({
+                                "error": error.to_string()
+                            }),
+                        },
+                    };
 
                 client
                     .post(format!("{SERVER}/results"))

@@ -8,11 +8,21 @@ pub struct Job {
     pub parameters: serde_json::Value,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+pub enum Workload {
+    VectorAdd,
+    VectorScale,
+    Saxpy,
+    MatrixMultiply,
+    Mandelbrot,
+    MonteCarlo,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WorkUnit {
     pub id: Uuid,
     pub job_id: Uuid,
-    pub workload: String,
+    pub workload: Workload,
     pub payload: serde_json::Value,
 
     // Lease information
@@ -46,13 +56,4 @@ pub struct WorkerInfo {
 pub enum WorkerStatus {
     Online,
     Offline,
-}
-
-pub enum Workload {
-    VectorAdd,
-    VectorScale,
-    Saxpy,
-    MatrixMultiply,
-    Mandelbrot,
-    MonteCarlo,
 }

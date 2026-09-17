@@ -8,12 +8,7 @@ use axum::{
 };
 
 use protocol::{
-    Job,
-    JobResult,
-    WorkUnit,
-    WorkerInfo,
-    WorkerRegistration,
-    WorkerStatus
+    Job, JobResult, WorkUnit, WorkerInfo, WorkerRegistration, WorkerStatus, Workload
 };
 
 use uuid::Uuid;
@@ -46,7 +41,7 @@ async fn create_job(State(state): State<AppState>, Json(job): Json<Job>) -> Json
     let work_unit = WorkUnit {
         id: Uuid::new_v4(),
         job_id: job.id,
-        workload: job.workload.clone(),
+        workload: Workload::VectorAdd, // TODO: make this dynamic
         payload: job.parameters.clone(),
         assigned_worker: None,
         lease_expires_at: None,
