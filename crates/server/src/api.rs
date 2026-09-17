@@ -1,14 +1,11 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{
-    Json, 
-    Router,
-    extract::{Path, State},
-    routing::{get, post},
+    Json, Router, extract::{Path, State}, http::StatusCode, routing::{get, post},
 };
 
 use protocol::{
-    Job, JobResult, WorkUnit, WorkerInfo, WorkerRegistration, WorkerStatus, Workload
+    Job, JobResult, JobStatus, WorkUnit, WorkerInfo, WorkerRegistration, WorkerStatus, Workload
 };
 
 use uuid::Uuid;
@@ -19,6 +16,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/jobs", post(create_job))
+        .route("/jobs/{id}", get(get_job))
         .route("/workers/register", post(register_worker))
         .route("/workers/{id}/heartbeat", post(heartbeat))
         .route("/workers/{id}/work", get(get_work))
@@ -37,7 +35,10 @@ async fn health() -> &'static str {
     "ok"
 }
 
-async fn create_job(State(state): State<AppState>, Json(job): Json<Job>) -> Json<Job> {
+async fn create_job(
+    State(state): State<AppState>,
+    Json(job): Json<Job>
+) -> Json<Job> {
     let work_unit = WorkUnit {
         id: Uuid::new_v4(),
         job_id: job.id,
@@ -53,6 +54,18 @@ async fn create_job(State(state): State<AppState>, Json(job): Json<Job>) -> Json
     println!("created job {}", job.id);
 
     Json(job)
+}
+
+async fn get_job(
+    State(state): State<AppState>,
+    Path(job_id): Path<Uuid>,
+) -> Result<Json<JobStatus>, StatusCode> {
+    let jobs = state.jobs.lock().unwrap();
+
+    match jobs.get(&job_id) {
+        Some(status) => Ok(Json(status.clone())),
+        None => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 async fn register_worker(
@@ -128,6 +141,18 @@ async fn submit_result(
     match work {
         Some(work) => {
             println!("work {} completed by {:?}", work.id, work.assigned_worker);
+
+            let status = if result.success {
+                JobStatus::Completed(result)
+            } else {
+                JobStatus::Failed(result)
+            };
+
+            state
+                .jobs
+                .lock()
+                .unwrap()
+                .insert(work.job_id, status);
 
             "accepted"
         }

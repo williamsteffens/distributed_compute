@@ -31,7 +31,15 @@ pub struct WorkUnit {
     pub attempts: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum JobStatus {
+    Queued,
+    Running,
+    Completed(JobResult),
+    Failed(JobResult),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JobResult {
     pub work_unit_id: Uuid,
     pub success: bool,
