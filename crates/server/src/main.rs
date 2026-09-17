@@ -14,8 +14,8 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Start { bind } => {
-            start_server(&bind).await?;
+        Command::Start { port } => {
+            start_server(port).await?;
         }
 
         Command::Run {
@@ -41,14 +41,16 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn start_server(bind: &str) -> Result<()> {
+async fn start_server(port: u16) -> Result<()> {
     let state = AppState::new();
 
     let app = api::router(state);
 
-    let listener = tokio::net::TcpListener::bind(bind).await?;
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
 
-    println!("server listening on http://{bind}");
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+
+    println!("server listening on http://{addr}");
 
     axum::serve(listener, app).await?;
 

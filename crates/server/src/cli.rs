@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
-#[command(name = "gpu-server", version, about = "Distributed GPU compute server")]
+#[command(name = "server", version, about = "Distributed compute server")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -10,8 +10,12 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Command {
     Start {
-        #[arg(long, default_value = "127.0.0.1:3000")]
-        bind: String,
+        #[arg(
+            long, 
+            default_value_t = 3000,
+            value_parser = clap::value_parser!(u16).range(1024..=65535),
+        )]
+        port: u16,
     },
 
     Run {
