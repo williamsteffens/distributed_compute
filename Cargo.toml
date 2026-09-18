@@ -5,7 +5,6 @@ members = [
     "crates/protocol",
     "crates/scheduler",
     "crates/runtime",
-    "crates/workloads",
     "crates/server",
     "crates/worker", "crates/benchmark",
 ]
