@@ -1,10 +1,7 @@
-export type Workload =
-    | "VectorAdd"
-    | "VectorScale"
-    | "Saxpy"
-    | "MatrixMultiply"
-    | "Mandelbrot"
-    | "MonteCarlo";
+export enum Workload {
+    VectorAdd = "vector_add",
+    VectorScale = "vector_scale",
+}
 
 export interface WorkUnit {
     id: string; 

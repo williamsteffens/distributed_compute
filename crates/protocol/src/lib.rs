@@ -4,11 +4,12 @@ use uuid::Uuid;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Job {
     pub id: Uuid,
-    pub workload: String,
+    pub workload: Workload,
     pub parameters: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
 pub enum Workload {
     VectorAdd,
     VectorScale,

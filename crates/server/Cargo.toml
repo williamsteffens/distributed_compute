@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 protocol = { path = "../protocol" }
 runtime = { path = "../runtime" }
-workloads = { path = "../workloads" }
 
 anyhow.workspace = true
 async-trait.workspace = true

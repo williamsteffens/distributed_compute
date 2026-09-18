@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use serde_json::Value;
+use protocol::Workload;
 
 use crate::ComputeRuntimeError;
 
@@ -11,11 +12,11 @@ pub trait ComputeRuntime: Send + Sync {
 
     async fn execute(
         &self,
-        workload: &str,
+        workload: Workload,
         payload: Value,
     ) -> Result<Value, ComputeRuntimeError> {
         match workload {
-            "vector_add" => self.vector_add(&payload).await,
+            Workload::VectorAdd => self.vector_add(&payload).await,
             _ => Err(ComputeRuntimeError::UnsupportedWorkload(
                 workload.to_string(),
             )),

@@ -1,6 +1,8 @@
+import { Workload } from "../protocol";
+
 export interface ComputeRuntime {
     execute(
-        workload: string,
+        workload: Workload,
         payload: unknown
     ): Promise<unknown>;
 }

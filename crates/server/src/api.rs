@@ -42,7 +42,7 @@ async fn create_job(
     let work_unit = WorkUnit {
         id: Uuid::new_v4(),
         job_id: job.id,
-        workload: Workload::VectorAdd, // TODO: make this dynamic
+        workload: job.workload,
         payload: job.parameters.clone(),
         assigned_worker: None,
         lease_expires_at: None,

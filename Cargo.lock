@@ -1578,7 +1578,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
- "workloads",
 ]
 
 [[package]]
@@ -2494,18 +2493,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
-]
-
-[[package]]
-name = "workloads"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "runtime",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]

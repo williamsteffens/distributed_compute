@@ -57,7 +57,7 @@ async fn main() {
                 println!("received work: {}", work_unit.id);
 
                 let result = 
-                    match runtime.execute("vector_add", work_unit.payload.clone()).await {
+                    match runtime.execute(work_unit.workload, work_unit.payload.clone()).await {
                         Ok(result) => JobResult {
                             work_unit_id: work_unit.id,
                             success: true,

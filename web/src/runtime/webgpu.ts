@@ -1,3 +1,4 @@
+import { Workload } from "../protocol";
 import type { ComputeRuntime } from "./runtime";
 
 const WORKGROUP_SIZE = 256;
@@ -31,12 +32,12 @@ export class WebGpuRuntime implements ComputeRuntime {
         return new WebGpuRuntime(device);
     }
 
-    async execute(workload: string, payload: unknown): Promise<unknown> {
+    async execute(workload: Workload, payload: unknown): Promise<unknown> {
         switch (workload) {
-            case "double":
+            case Workload.VectorScale:
                 return this.executeDouble(payload);
 
-            case "VectorAdd":
+            case Workload.VectorAdd:
                 throw new Error(
                     `Unsupported workload: ${workload}`,
                 );
