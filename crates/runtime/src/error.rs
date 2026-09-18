@@ -1,9 +1,10 @@
 use std::fmt;
+use protocol::Workload;
 
 #[derive(Debug)]
 pub enum ComputeRuntimeError {
     InvalidPayload(String),
-    UnsupportedWorkload(String),
+    UnsupportedWorkload(Workload),
     ExecutionFailed(String),
 }
 
@@ -15,7 +16,7 @@ impl fmt::Display for ComputeRuntimeError {
             }
 
             Self::UnsupportedWorkload(workload) => {
-                write!(f, "unsupported workload: {workload}")
+                write!(f, "unsupported workload: {workload:?}")
             }
 
             Self::ExecutionFailed(message) => {

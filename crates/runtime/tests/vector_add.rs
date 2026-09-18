@@ -1,4 +1,5 @@
 use runtime::{ComputeRuntime, CpuRuntime, GpuRuntime};
+use protocol::Workload;
 
 async fn test_vector_add<R: ComputeRuntime>() {
     let runtime = R::new()
@@ -6,7 +7,7 @@ async fn test_vector_add<R: ComputeRuntime>() {
 
     let result = runtime
         .execute(
-            "vector_add",
+            Workload::VectorAdd,
             serde_json::json!({
                 "a": [1.0, 2.0, 3.0, 4.0],
                 "b": [10.0, 20.0, 30.0, 40.0],

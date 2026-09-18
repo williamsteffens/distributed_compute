@@ -17,8 +17,9 @@ pub trait ComputeRuntime: Send + Sync {
     ) -> Result<Value, ComputeRuntimeError> {
         match workload {
             Workload::VectorAdd => self.vector_add(&payload).await,
+            
             _ => Err(ComputeRuntimeError::UnsupportedWorkload(
-                workload.to_string(),
+                workload
             )),
         }
     }
