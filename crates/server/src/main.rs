@@ -1,5 +1,4 @@
 mod api;
-mod benchmark;
 mod cli;
 mod state;
 mod config;
