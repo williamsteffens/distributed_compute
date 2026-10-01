@@ -17,6 +17,8 @@ pub trait ComputeRuntime: Send + Sync {
     ) -> Result<Value, ComputeRuntimeError> {
         match workload {
             Workload::VectorAdd => self.vector_add(&parameters).await,
+
+            Workload::VectorScale => self.vector_scale(&parameters).await,
             
             _ => Err(ComputeRuntimeError::UnsupportedWorkload(
                 workload
@@ -25,6 +27,11 @@ pub trait ComputeRuntime: Send + Sync {
     }
 
     async fn vector_add(
+        &self,
+        parameters: &Value,
+    ) -> Result<Value, ComputeRuntimeError>;
+
+    async fn vector_scale(
         &self,
         parameters: &Value,
     ) -> Result<Value, ComputeRuntimeError>;

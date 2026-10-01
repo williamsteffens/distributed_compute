@@ -43,4 +43,31 @@ impl ComputeRuntime for CpuRuntime {
             "values": values
         }))
     }
+
+    async fn vector_scale(
+        &self,
+        parameters: &Value,
+    ) -> Result<Value, ComputeRuntimeError> {
+        let values: Vec<f32> = serde_json::from_value(
+            parameters
+                .get("values")
+                .cloned()
+                .ok_or_else(|| ComputeRuntimeError::InvalidPayload("missing payload.values".into()))?,
+        )
+        .map_err(|e| ComputeRuntimeError::InvalidPayload(e.to_string()))?;
+
+        let scalar: f32 = serde_json::from_value(
+            parameters
+                .get("scalar")
+                .cloned()
+                .ok_or_else(|| ComputeRuntimeError::InvalidPayload("missing payload.scalar".into()))?,
+        )
+        .map_err(|e| ComputeRuntimeError::InvalidPayload(e.to_string()))?;
+
+        let scaled_values = values.into_iter().map(|v| v * scalar).collect::<Vec<_>>();
+
+        Ok(serde_json::json!({
+            "values": scaled_values
+        }))
+    }
 }
