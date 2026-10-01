@@ -40,9 +40,9 @@ impl GpuRuntime {
         Ok(Self { device, queue })
     }
 
-    fn vector_add(&self, payload: &Value) -> Result<Value, ComputeRuntimeError> {
+    fn vector_add(&self, parameters: &Value) -> Result<Value, ComputeRuntimeError> {
         let a: Vec<f32> = serde_json::from_value(
-            payload
+            parameters
                 .get("a")
                 .cloned()
                 .ok_or_else(|| ComputeRuntimeError::InvalidPayload("missing payload.a".into()))?,
@@ -50,7 +50,7 @@ impl GpuRuntime {
         .map_err(|e| ComputeRuntimeError::InvalidPayload(e.to_string()))?;
 
         let b: Vec<f32> = serde_json::from_value(
-            payload
+            parameters
                 .get("b")
                 .cloned()
                 .ok_or_else(|| ComputeRuntimeError::InvalidPayload("missing payload.b".into()))?,

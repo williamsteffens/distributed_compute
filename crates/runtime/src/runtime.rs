@@ -13,10 +13,10 @@ pub trait ComputeRuntime: Send + Sync {
     async fn execute(
         &self,
         workload: Workload,
-        payload: Value,
+        parameters: Value,
     ) -> Result<Value, ComputeRuntimeError> {
         match workload {
-            Workload::VectorAdd => self.vector_add(&payload).await,
+            Workload::VectorAdd => self.vector_add(&parameters).await,
             
             _ => Err(ComputeRuntimeError::UnsupportedWorkload(
                 workload
@@ -26,6 +26,6 @@ pub trait ComputeRuntime: Send + Sync {
 
     async fn vector_add(
         &self,
-        payload: &Value,
+        parameters: &Value,
     ) -> Result<Value, ComputeRuntimeError>;
 }

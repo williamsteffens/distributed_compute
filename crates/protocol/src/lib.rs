@@ -24,7 +24,7 @@ pub struct WorkUnit {
     pub id: Uuid,
     pub job_id: Uuid,
     pub workload: Workload,
-    pub payload: serde_json::Value,
+    pub parameters: serde_json::Value,
 
     // Lease information
     pub assigned_worker: Option<Uuid>,

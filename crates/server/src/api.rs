@@ -1,11 +1,14 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{
-    Json, Router, extract::{Path, State}, http::StatusCode, routing::{get, post},
+    Json, Router,
+    extract::{Path, State},
+    http::StatusCode,
+    routing::{get, post},
 };
 
 use protocol::{
-    Job, JobResult, JobStatus, WorkUnit, WorkerInfo, WorkerRegistration, WorkerStatus, Workload
+    Job, JobResult, JobStatus, WorkUnit, WorkerInfo, WorkerRegistration, WorkerStatus,
 };
 
 use uuid::Uuid;
@@ -43,7 +46,7 @@ async fn create_job(
         id: Uuid::new_v4(),
         job_id: job.id,
         workload: job.workload,
-        payload: job.parameters.clone(),
+        parameters: job.parameters.clone(),
         assigned_worker: None,
         lease_expires_at: None,
         attempts: 0,
