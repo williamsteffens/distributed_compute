@@ -1,5 +1,6 @@
 import { Workload } from "../protocol";
 import type { ComputeRuntime } from "./runtime";
+import vectorScaleShader from "../../../shaders/vector_scale.wgsl?raw";
 
 const WORKGROUP_SIZE = 256;
 
@@ -56,22 +57,7 @@ export class WebGpuRuntime implements ComputeRuntime {
             return [];
         }
 
-        const shader = `
-      @group(0) @binding(0)
-      var<storage, read> input: array<f32>;
-
-      @group(0) @binding(1)
-      var<storage, read_write> output: array<f32>;
-
-      @compute @workgroup_size(256)
-      fn main(@builtin(global_invocation_id) id: vec3<u32>) {
-          let i = id.x;
-
-          if (i < arrayLength(&output)) {
-              output[i] = input[i] * 2.0;
-          }
-      }
-    `;
+        const shader = vectorScaleShader;
 
         const module = this.device.createShaderModule({
             label: "double",
