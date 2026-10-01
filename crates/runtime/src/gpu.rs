@@ -9,6 +9,16 @@ pub struct GpuRuntime {
     queue: wgpu::Queue,
 }
 
+const VECTOR_ADD_SHADER: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../shaders/vector_add.wgsl"
+));
+
+const VECTOR_SCALE_SHADER: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../shaders/vector_scale.wgsl"
+));
+
 impl GpuRuntime {
     // need anyhow::Result here because wgpu::RequestAdapterError does not translate to ComputeRuntimeError
     pub fn new() -> anyhow::Result<Self> {
@@ -112,7 +122,7 @@ impl GpuRuntime {
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("vector-add-shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/vector_add.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(VECTOR_ADD_SHADER.into()),
             });
 
         // 4. Describe bindings
