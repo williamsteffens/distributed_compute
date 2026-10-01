@@ -19,11 +19,9 @@ async fn main() -> Result<()> {
     match cli.command {
         Command::Start { port } => {
             let mut config = Config::from_env()?;
-
-            if let Some(port) = port {
-                config.server_port = port;
-            }
-
+            
+            config.server_port = port;
+            
             start_server(&config).await?;
         }
 

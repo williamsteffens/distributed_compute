@@ -12,9 +12,10 @@ pub enum Command {
     Start {
         #[arg(
             long, 
+            default_value_t = 42069u16,
             value_parser = clap::value_parser!(u16).range(1024..=65535),
         )]
-        port: Option<u16>,
+        port: u16,
     },
 
     // Run {
