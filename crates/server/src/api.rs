@@ -8,7 +8,7 @@ use axum::{
 };
 
 use protocol::{
-    Job, JobResult, JobStatus, WorkUnit, WorkerInfo, WorkerRegistration, WorkerStatus,
+    Job, JobRequest, JobResult, JobStatus, WorkUnit, WorkerInfo, WorkerRegistration, WorkerStatus,
 };
 
 use uuid::Uuid;
@@ -40,13 +40,23 @@ async fn health() -> &'static str {
 
 async fn create_job(
     State(state): State<AppState>,
-    Json(job): Json<Job>
+    Json(job_request): Json<JobRequest>
 ) -> Json<Job> {
+    let job_id = Uuid::new_v4();
+
+    let job = Job {
+        id: job_id,
+        workload: job_request.workload,
+        parameters: job_request.parameters.clone(),
+    };
+
+    // this should not be the job of the API to create work units
     let work_unit = WorkUnit {
         id: Uuid::new_v4(),
-        job_id: job.id,
-        workload: job.workload,
-        parameters: job.parameters.clone(),
+        job_id: job_id,
+        workload: job_request.workload,
+        parameters: job_request.parameters.clone(),
+
         assigned_worker: None,
         lease_expires_at: None,
         attempts: 0,
@@ -125,9 +135,9 @@ async fn get_work(
     };
 
     if let Some(work) = work {
-        println!("assigned work {} to worker {}", work.id, worker_id);
+        println!("assigned work {} to worker {}", work.job_id, worker_id);
 
-        state.assigned.lock().unwrap().insert(work.id, work.clone());
+        state.assigned.lock().unwrap().insert(work.job_id, work.clone());
 
         return Json(Some(work));
     }
@@ -139,11 +149,11 @@ async fn submit_result(
     State(state): State<AppState>,
     Json(result): Json<JobResult>,
 ) -> &'static str {
-    let work = state.assigned.lock().unwrap().remove(&result.work_unit_id);
+    let work = state.assigned.lock().unwrap().remove(&result.job_id);
 
     match work {
         Some(work) => {
-            println!("work {} completed by {:?}", work.id, work.assigned_worker);
+            println!("work {} completed by {:?}", work.job_id, work.assigned_worker);
 
             let status = if result.success {
                 JobStatus::Completed(result)
@@ -161,7 +171,7 @@ async fn submit_result(
         }
 
         None => {
-            println!("received result for unknown work {}", result.work_unit_id);
+            println!("received result for unknown work {}", result.job_id);
 
             "unknown work"
         }

@@ -62,13 +62,13 @@ async fn main() {
                         work_unit.parameters.clone()
                     ).await {
                         Ok(result) => JobResult {
-                            work_unit_id: work_unit.id,
+                            job_id: work_unit.job_id,
                             success: true,
                             result,
                         },
 
                         Err(error) => JobResult {
-                            work_unit_id: work_unit.id,
+                            job_id: work_unit.job_id,
                             success: false,
                             result: serde_json::json!({
                                 "error": error.to_string()

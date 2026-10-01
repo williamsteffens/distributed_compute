@@ -8,6 +8,12 @@ pub struct Job {
     pub parameters: serde_json::Value,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JobRequest {
+    pub workload: Workload,
+    pub parameters: serde_json::Value,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum Workload {
@@ -42,7 +48,7 @@ pub enum JobStatus {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JobResult {
-    pub work_unit_id: Uuid,
+    pub job_id: Uuid,
     pub success: bool,
     pub result: serde_json::Value,
 }
@@ -65,4 +71,13 @@ pub struct WorkerInfo {
 pub enum WorkerStatus {
     Online,
     Offline,
+}
+
+pub enum Backend {
+    NativeCpu,
+    NativeGpu,
+    TS,
+    WasmCpu,
+    WasmGpu,
+    WebGpu,
 }
