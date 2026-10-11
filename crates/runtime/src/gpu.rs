@@ -19,6 +19,11 @@ const VECTOR_SCALE_SHADER: &str = include_str!(concat!(
     "/../../shaders/vector_scale.wgsl"
 ));
 
+const MATRIX_MULTIPLY_SHADER: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../shaders/matrix_mult.wgsl"
+));
+
 impl GpuRuntime {
     // need anyhow::Result here because wgpu::RequestAdapterError does not translate to ComputeRuntimeError
     pub fn new() -> anyhow::Result<Self> {
@@ -267,13 +272,11 @@ impl GpuRuntime {
     }
 
     fn vector_scale(&self, parameters: &Value) -> Result<Value, ComputeRuntimeError> {
-        let a: Vec<f32> = serde_json::from_value(
-            parameters
-                .get("values")
-                .cloned()
-                .ok_or_else(|| ComputeRuntimeError::InvalidPayload("missing payload.values".into()))?,
-        )
-        .map_err(|e| ComputeRuntimeError::InvalidPayload(e.to_string()))?;
+        let a: Vec<f32> =
+            serde_json::from_value(parameters.get("values").cloned().ok_or_else(|| {
+                ComputeRuntimeError::InvalidPayload("missing payload.values".into())
+            })?)
+            .map_err(|e| ComputeRuntimeError::InvalidPayload(e.to_string()))?;
 
         let scalar: f32 =
             serde_json::from_value(parameters.get("scalar").cloned().ok_or_else(|| {
@@ -458,6 +461,274 @@ impl GpuRuntime {
             "values": values
         }))
     }
+
+    fn matrix_multiply(&self, parameters: &Value) -> Result<Value, ComputeRuntimeError> {
+        let invalid = |message: String| ComputeRuntimeError::InvalidPayload(message);
+
+        let a: Vec<f32> = serde_json::from_value(
+            parameters
+                .get("a")
+                .cloned()
+                .ok_or_else(|| invalid("missing payload.a".into()))?,
+        )
+        .map_err(|e| invalid(e.to_string()))?;
+
+        let b: Vec<f32> = serde_json::from_value(
+            parameters
+                .get("b")
+                .cloned()
+                .ok_or_else(|| invalid("missing payload.b".into()))?,
+        )
+        .map_err(|e| invalid(e.to_string()))?;
+
+        let params = parameters
+            .get("params")
+            .ok_or_else(|| invalid("missing payload.params".into()))?;
+
+        let read_dimension = |name: &str| -> Result<usize, ComputeRuntimeError> {
+            let value: u32 = serde_json::from_value(
+                params
+                    .get(name)
+                    .cloned()
+                    .ok_or_else(|| invalid(format!("missing params.{name}")))?,
+            )
+            .map_err(|e| invalid(e.to_string()))?;
+
+            Ok(value as usize)
+        };
+
+        let m = read_dimension("m")?;
+        let k = read_dimension("k")?;
+        let n = read_dimension("n")?;
+
+        let a_len = m
+            .checked_mul(k)
+            .ok_or_else(|| invalid("matrix dimensions overflow".into()))?;
+        let b_len = k
+            .checked_mul(n)
+            .ok_or_else(|| invalid("matrix dimensions overflow".into()))?;
+        let result_len = m
+            .checked_mul(n)
+            .ok_or_else(|| invalid("matrix dimensions overflow".into()))?;
+
+        if a.len() != a_len || b.len() != b_len {
+            return Err(invalid(
+                "matrix dimensions do not match input lengths".into(),
+            ));
+        }
+
+        if result_len == 0 {
+            return Ok(serde_json::json!({ "values": [] }));
+        }
+
+        let a_size = std::mem::size_of_val(a.as_slice()) as u64;
+        let b_size = std::mem::size_of_val(b.as_slice()) as u64;
+        let result_size = (result_len * std::mem::size_of::<f32>()) as u64;
+        let params_size = std::mem::size_of::<[u32; 3]>() as u64;
+
+        // 1. Create GPU buffers.
+        let a_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("matrix-a"),
+            size: a_size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let b_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("matrix-b"),
+            size: b_size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let result_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("matrix-result"),
+            size: result_size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        let params_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("matrix-params"),
+            size: params_size,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("matrix-result-staging"),
+            size: result_size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // 2. Upload inputs and dimensions.
+        self.queue
+            .write_buffer(&a_buffer, 0, bytemuck::cast_slice(&a));
+        self.queue
+            .write_buffer(&b_buffer, 0, bytemuck::cast_slice(&b));
+
+        let gpu_params = [m as u32, k as u32, n as u32];
+        self.queue
+            .write_buffer(&params_buffer, 0, bytemuck::cast_slice(&gpu_params));
+
+        // 3. Load shader.
+        let shader = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("matrix-multiply-shader"),
+                source: wgpu::ShaderSource::Wgsl(MATRIX_MULTIPLY_SHADER.into()),
+            });
+
+        // 4. Define bindings.
+        let bind_group_layout =
+            self.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("matrix-bind-group-layout"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::COMPUTE,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                    ],
+                });
+
+        // 5. Create pipeline.
+        let pipeline_layout = self
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("matrix-pipeline-layout"),
+                bind_group_layouts: &[Some(&bind_group_layout)],
+                immediate_size: 0,
+            });
+
+        let pipeline = self
+            .device
+            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("matrix-multiply-pipeline"),
+                layout: Some(&pipeline_layout),
+                module: &shader,
+                entry_point: Some("main"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                cache: None,
+            });
+
+        // 6. Bind buffers.
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("matrix-bind-group"),
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: a_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: b_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: result_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: params_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        // 7. Dispatch GPU compute.
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("matrix-command-encoder"),
+            });
+
+        {
+            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("matrix-compute-pass"),
+                timestamp_writes: None,
+            });
+
+            pass.set_pipeline(&pipeline);
+            pass.set_bind_group(0, &bind_group, &[]);
+            pass.dispatch_workgroups((n as u32).div_ceil(16), (m as u32).div_ceil(16), 1);
+        }
+
+        // 8. Copy result to readable buffer.
+        encoder.copy_buffer_to_buffer(&result_buffer, 0, &staging_buffer, 0, result_size);
+
+        self.queue.submit(Some(encoder.finish()));
+
+        // 9. Wait for GPU and map the result.
+        let slice = staging_buffer.slice(..);
+        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+
+        slice.map_async(wgpu::MapMode::Read, move |result| {
+            let _ = sender.send(result);
+        });
+
+        self.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })
+            .map_err(|e| ComputeRuntimeError::ExecutionFailed(e.to_string()))?;
+
+        receiver
+            .recv()
+            .map_err(|e| ComputeRuntimeError::ExecutionFailed(e.to_string()))?
+            .map_err(|e| ComputeRuntimeError::ExecutionFailed(e.to_string()))?;
+
+        // 10. Read results.
+        let data = slice
+            .get_mapped_range()
+            .map_err(|e| ComputeRuntimeError::ExecutionFailed(e.to_string()))?;
+        let values: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
+
+        drop(data);
+        staging_buffer.unmap();
+
+        Ok(serde_json::json!({
+            "values": values
+        }))
+    }
 }
 
 #[async_trait]
@@ -472,5 +743,9 @@ impl ComputeRuntime for GpuRuntime {
 
     async fn vector_scale(&self, parameters: &Value) -> Result<Value, ComputeRuntimeError> {
         self.vector_scale(parameters)
+    }
+
+    async fn matrix_multiply(&self, parameters: &Value) -> Result<Value, ComputeRuntimeError> {
+        self.matrix_multiply(parameters)
     }
 }
