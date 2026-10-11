@@ -11,5 +11,7 @@ var<storage, read_write> result: array<f32>;
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = id.x;
 
-    result[i] = a[i] + b[i];
+    if (i < arrayLength(&a)) {
+        result[i] = a[i] + b[i];
+    }
 }

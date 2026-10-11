@@ -3,14 +3,26 @@ name = "runtime"
 version = "0.1.0"
 edition = "2024"
 
+[dev-dependencies]
+criterion = { version = "0.8", features = ["html_reports"]}
+wasm-bindgen-test = "0.3"
+
+[[bench]]
+name = "bench_runtime"
+harness = false
+
 [dependencies]
-protocol = { path = "../protocol" }
+protocol.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
+serde = { version = "1", features = ["derive"] }
 serde_json.workspace = true
-tokio.workspace = true
-
 bytemuck = { version = "1.25.2", features = ["derive"] }
 pollster = "1.0.1"
 wgpu = "30.0.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["full"] }
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "1", default-features = false, features = ["macros", "rt", "sync", "time"] }
