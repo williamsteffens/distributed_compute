@@ -1,8 +1,8 @@
 import { Workload } from "../protocol";
 import type { ComputeRuntime } from "./runtime";
 
-import vectorAddShader from "../../../shaders/vector_add.wgsl?raw";
-import vectorScaleShader from "../../../shaders/vector_scale.wgsl?raw";
+import vectorAddShader from "../../../../../shaders/vector_add.wgsl?raw";
+import vectorScaleShader from "../../../../../shaders/vector_scale.wgsl?raw";
 
 const WORKGROUP_SIZE = 256;
 
