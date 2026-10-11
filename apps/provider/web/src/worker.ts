@@ -36,21 +36,26 @@ async function initialize(): Promise<void> {
         return;
     }
 
-    runtime = await WebGpuRuntime.create();
-
-    await register();
-
-    self.postMessage({
-        type: "ready",
-    });
-
     running = true;
 
-    setInterval(() => {
-        void heartbeat().catch(postError);
-    }, 5_000);
-
-    await run();
+    try {
+        runtime = await WebGpuRuntime.create();
+        await register();
+        
+        self.postMessage({
+            type: "ready",
+        });
+        
+        
+        setInterval(() => {
+            void heartbeat().catch(postError);
+        }, 5_000);
+        
+        await run();
+    } catch (error) {
+        running = false;
+        throw error;
+    }
 }
 
 async function register(): Promise<void> {
@@ -149,13 +154,13 @@ async function run(): Promise<void> {
             );
 
             await submitResult({
-                work_unit_id: work.id,
+                job_id: work.job_id,
                 success: true,
                 result,
             });
         } catch (error) {
             await submitResult({
-                work_unit_id: work.id,
+                job_id: work.job_id,
                 success: false,
                 result: {
                     error: String(error),

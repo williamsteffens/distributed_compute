@@ -15,9 +15,20 @@ use uuid::Uuid;
 
 use crate::state::AppState;
 
+// communication layer
+// module: HTTP RestAPI, websockets, webtrasnport, grpc, webrtc 
+// events
+
+// coordination layer
+// module: job scheduling, worker management, work unit assignment, result collection
+
+// execution layer
+// module: runtime, compute engine, workload execution, resource management
+
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        // .route("/status", get(get_status))
         .route("/jobs", post(create_job))
         .route("/jobs/{id}", get(get_job))
         .route("/workers/register", post(register_worker))
@@ -37,6 +48,18 @@ fn now() -> u64 {
 async fn health() -> &'static str {
     "ok"
 }
+
+// async fn get_status(State(state): State<AppState>) -> Json<serde_json::Value> {
+//     // let jobs = state.jobs.lock().unwrap();
+//     // let workers = state.workers.lock().unwrap();
+//     // let queue = state.queue.lock().unwrap();
+
+//     // Json(serde_json::json!({
+//     //     "jobs": jobs.len(),
+//     //     "workers": workers.len(),
+//     //     "queue": queue.len(),
+//     // }))
+// }
 
 async fn create_job(
     State(state): State<AppState>,

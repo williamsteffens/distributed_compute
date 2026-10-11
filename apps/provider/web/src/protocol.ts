@@ -14,7 +14,7 @@ export interface WorkUnit {
 }
 
 export interface JobResult {
-    work_unit_id: string; 
+    job_id: string; 
     success: boolean;
     result: unknown;
 }

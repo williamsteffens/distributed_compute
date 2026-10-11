@@ -2,7 +2,7 @@ use protocol::{JobResult, WorkUnit, WorkerRegistration};
 use runtime::{ComputeRuntime, GpuRuntime};
 use uuid::Uuid;
 
-// TODO: change this
+// TODO: change this to be cli input or env variable
 const SERVER: &str = "http://localhost:42069";
 
 #[tokio::main]
@@ -40,8 +40,8 @@ async fn main() {
 
     println!("worker id: {worker_id}");
 
-    let runtime = GpuRuntime::new()
-        .expect("failed to initialize GPU runtime");
+    // TODO: make this configurable
+    let runtime = GpuRuntime::new().expect("failed to initialize GPU runtime");
 
     loop {
         let response = client
@@ -74,7 +74,7 @@ async fn main() {
                                 "error": error.to_string()
                             }),
                         },
-                    };
+                };
 
                 client
                     .post(format!("{SERVER}/results"))
